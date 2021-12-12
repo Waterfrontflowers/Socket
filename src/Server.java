@@ -17,6 +17,7 @@ public class Server {
         System.out.print("请输入开放端口：");
         int port = scanner.nextInt();
         ServerSocket serverSocket = new ServerSocket(port);
+        System.out.println("端口监听创建成功！");
         while(true) {
             try {
                 //创建一个ServerSocket,负责服务端这边监听对应端口号

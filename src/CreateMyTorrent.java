@@ -36,7 +36,7 @@ public class CreateMyTorrent {
         //final String torrentUrl;
         JSONArray jsonArray = new JSONArray();
         JSONObject jsHost = new JSONObject();
-        System.out.print("请输入socket套接字：");
+        System.out.print("请输入服务端的socket套接字：");
         String host = scanner.nextLine();
         String rule = ":";
         Pattern pattern = Pattern.compile(rule);
@@ -79,7 +79,7 @@ public class CreateMyTorrent {
         FileUtils.touch(file);
 
         for(int i = 1 ;i < num ;i ++){
-            System.out.print("请输入socket套接字：");
+            System.out.print("请输入服务端的socket套接字：");
             host = scanner.nextLine();
             rule = ":";
             pattern = Pattern.compile(rule);
@@ -98,10 +98,11 @@ public class CreateMyTorrent {
         }
 
         jsonObject.put("hosts",jsonArray);
-        System.out.println(jsonObject);
+        //System.out.println(jsonObject);
 
         //System.out.println(url.substring(0,end) + title + ".myTorrent");
         FileUtils.writeStringToFile(file,jsonObject.toString(4), StandardCharsets.US_ASCII);
+        System.out.println("已保存在第1个输入路径的文件夹中");
 
     }
 

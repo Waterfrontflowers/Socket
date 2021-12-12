@@ -56,7 +56,7 @@ public class Client {
         CountDownLatch latch = new CountDownLatch(BLOCK_MAX);
         int i = 0;
         while(i < BLOCK_MAX){
-            for(int j = 0 ;  j < Integer.parseInt(hashMap.get("hostNumber")); j++) {
+            for(int j = 0 ;  j < Integer.parseInt(hashMap.get("hostNumber")) && i < BLOCK_MAX; j++) {
                 if (downloadThreads[j] == null || !downloadThreads[j].isAlive()){
                     downloadThreads[j] = new DownloadThread("host"+ j ,hostUrl[j] ,i,fileString,Integer.parseInt(hashMap.get("size")),latch);
                     downloadThreads[j].start();
