@@ -1,17 +1,18 @@
-import java.io.*;
-import java.net.*;
-import java.nio.charset.StandardCharsets;
-
 import org.apache.commons.codec.binary.Hex;
-import org.apache.commons.codec.language.bm.Rule;
-import org.json.*;
-import org.apache.commons.io.*;
+import org.apache.commons.io.FileUtils;
+import org.json.JSONArray;
+import org.json.JSONObject;
 
+import java.io.*;
+import java.net.Socket;
+import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.Random;
+import java.util.Scanner;
 import java.util.concurrent.CountDownLatch;
-
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 /**
@@ -21,7 +22,6 @@ import java.util.regex.Pattern;
 public class Client {
     final static int BLOCK_SIZE =  262144;
     public static void main(String[] args) throws IOException, InterruptedException, NoSuchAlgorithmException {
-        Socket socket = null;
 
         System.out.print("请输入myTorrent的文件路径：");
         Scanner scanner = new Scanner(System.in);
@@ -54,88 +54,35 @@ public class Client {
             hostUrl[i] = (JSONObject) hosts.get(i);
         }
         CountDownLatch latch = new CountDownLatch(BLOCK_MAX);
+        ArrayList<DownloadThread> threads = new ArrayList<>(BLOCK_MAX);
         int i = 0;
         while(i < BLOCK_MAX){
             for(int j = 0 ;  j < Integer.parseInt(hashMap.get("hostNumber")) && i < BLOCK_MAX; j++) {
                 if (downloadThreads[j] == null || !downloadThreads[j].isAlive()){
-                    downloadThreads[j] = new DownloadThread("host"+ j ,hostUrl[j] ,i,fileString,Integer.parseInt(hashMap.get("size")),latch);
+                    downloadThreads[j] = new DownloadThread("host"+ j ,hostUrl[j] ,i,fileString,Integer.parseInt(hashMap.get("size")),latch,threads);
+                    threads.add(downloadThreads[j]);
                     downloadThreads[j].start();
                     i++;
                 }
             }
         }
 
-        /*for(int j = 0 ;  j < Integer.parseInt(hashMap.get("hostNumber")); j++) {
-            while (downloadThreads[j].isAlive()){
-            }
-        }*/
+
         latch.await();
-        /*try {
-            //主机ip
-            String host = "150.158.91.238";
 
-            //主机端口号
-            int port = 8888;
-
-            //创建套接字,套接字是传输层Tcp像应用层Http开的一个编程接口，开发人员主要是通过套接字对tcp进行编程
-            socket = new Socket(host,8888);
-
-            //向服务端发起一个请求，通过socket创建io输出流
-            OutputStream outputStream = socket.getOutputStream();
-
-            //通过io输出流创建数据输出流
-            DataOutputStream dataOutputStream = new DataOutputStream(outputStream);
-
-
-            int block=0;
-            long start=0,end=262144;
-            String url = "C:\\IMG_20211207_173215_1.jpg";
-            String blockUrl = url+" /"+start+" /"+end;
-
-            //发起请求，这里直接传了一个hello过去
-            dataOutputStream.writeUTF(blockUrl);
-
-            //通过socket创建io输入流
-            InputStream inputStream = socket.getInputStream();
-
-            //通过io输入流创建数据输入流
-            DataInputStream dataInputStream = new DataInputStream(inputStream);
-
-            //接收服务端的响应
-            String receive ="";
-            String s;
-            while (!"theJpgIsNowFinish".equals(s = dataInputStream.readUTF())) {
-                receive += s;
-            }
-            //System.out.println("客户端接收到的数据：[ " + receive + " ]");
-
-            //OutputStreamWriter osw2=new OutputStreamWriter(new FileOutputStream("IMG_20211207_173215_1.jpg"),"ASCII");
-            File file = new File("IMG_20211207_173215_1.jpg");
-
-            FileUtils.touch(file);
-            FileUtils.writeStringToFile(file,receive,StandardCharsets.ISO_8859_1,false);
-
-            //关闭数据传输流
-            dataOutputStream.close();
-            dataInputStream.close();
-
-
-        } catch (IOException e) {
-            e.printStackTrace();
-        }*/
-        String receive = "";
+        StringBuilder receive = new StringBuilder();
         for (StringBuffer s : fileString) {
-            receive += s.toString();
+            receive.append(s.toString());
         }
         System.out.println("正在进行SHA512校验");
-        if(Hash(receive).equals(hashMap.get("SHA512"))) {
+        if(Hash(receive.toString()).equals(hashMap.get("SHA512"))) {
             File file = new File(fileName);
             FileUtils.touch(file);
-            FileUtils.writeStringToFile(file, receive, StandardCharsets.ISO_8859_1, false);
+            FileUtils.writeStringToFile(file, receive.toString(), StandardCharsets.ISO_8859_1, false);
             System.out.println("校验通过，文件已存储。");
         }
         else {
-            System.out.println("校验失败！SHA512:" + Hash(receive));
+            System.out.println("校验失败！SHA512:" + Hash(receive.toString()));
         }
 
     }
@@ -148,29 +95,31 @@ public class Client {
         // 调用digest方法，进行加密操作
         byte[] cipherBytes = messageDigest.digest(plainText.getBytes());
 
-        String cipherStr = Hex.encodeHexString(cipherBytes);
-
-        return cipherStr;
+        return Hex.encodeHexString(cipherBytes);
     }
 }
 
 class DownloadThread extends Thread{
     private Thread thread;
-    private String threadName;
+    private final String threadName;
     private JSONObject host;
-    private int block;
-    private StringBuffer[] fileString;
+    private final int block;
+    private final StringBuffer[] fileString;
     final static int BLOCK_SIZE =  262144;
-    private int fileSize;
-    private CountDownLatch latch;
+    private final int fileSize;
+    private final CountDownLatch latch;
+    private final ArrayList<DownloadThread> threads;
+    private boolean hostError;
 
-    public DownloadThread(String threadName,JSONObject host,int block,StringBuffer[] fileString,int fileSize,CountDownLatch latch){
+
+    public DownloadThread(String threadName,JSONObject host,int block,StringBuffer[] fileString,int fileSize,CountDownLatch latch ,ArrayList<DownloadThread> threads){
         this.threadName = threadName;
         this.host = host;
         this.block = block;
         this.fileString = fileString;
         this.fileSize = fileSize;
         this.latch = latch;
+        this.threads = threads;
     }
 
     @Override
@@ -183,62 +132,81 @@ class DownloadThread extends Thread{
 
     @Override
     public void run(){
-        System.out.println("正在尝试向 " + this.host.get("host") + " 获取第 " + this.block + "块文件");
-        Socket socket = null;
-        try {
-            //主机ip
-            String host = this.host.get("host").toString();
+        while(true) {
+            System.out.println("正在尝试向 " + this.host.get("host") + " 获取第 " + this.block + "块文件");
+            Socket socket;
+            try {
+                //主机ip
+                String host = this.host.get("host").toString();
 
-            //主机端口号
-            int port = Integer.parseInt(this.host.get("port").toString());
+                //主机端口号
+                int port = Integer.parseInt(this.host.get("port").toString());
 
-            //创建套接字,套接字是传输层Tcp像应用层Http开的一个编程接口，开发人员主要是通过套接字对tcp进行编程
-            socket = new Socket(host,port);
+                //创建套接字,套接字是传输层Tcp像应用层Http开的一个编程接口，开发人员主要是通过套接字对tcp进行编程
+                socket = new Socket(host, port);
 
-            //向服务端发起一个请求，通过socket创建io输出流
-            OutputStream outputStream = socket.getOutputStream();
+                //向服务端发起一个请求，通过socket创建io输出流
+                OutputStream outputStream = socket.getOutputStream();
 
-            //通过io输出流创建数据输出流
-            DataOutputStream dataOutputStream = new DataOutputStream(outputStream);
+                //通过io输出流创建数据输出流
+                DataOutputStream dataOutputStream = new DataOutputStream(outputStream);
 
 
-            int start = BLOCK_SIZE * this.block;
-            int end = BLOCK_SIZE * (this.block + 1) <= fileSize ? BLOCK_SIZE * (this.block + 1) : fileSize;
-            String url = this.host.get("url").toString();
-            String blockUrl = url+" /"+start+" /"+end;
+                int start = BLOCK_SIZE * this.block;
+                int end = Math.min(BLOCK_SIZE * (this.block + 1), fileSize);
+                String url = this.host.get("url").toString();
+                String blockUrl = url + " /" + start + " /" + end;
 
-            //发起请求，这里直接传了一个hello过去
-            dataOutputStream.writeUTF(blockUrl);
+                //发起请求，这里直接传了一个hello过去
+                dataOutputStream.writeUTF(blockUrl);
 
-            //通过socket创建io输入流
-            InputStream inputStream = socket.getInputStream();
+                //通过socket创建io输入流
+                InputStream inputStream = socket.getInputStream();
 
-            //通过io输入流创建数据输入流
-            DataInputStream dataInputStream = new DataInputStream(inputStream);
+                //通过io输入流创建数据输入流
+                DataInputStream dataInputStream = new DataInputStream(inputStream);
 
-            //接收服务端的响应
-            String receive ="";
-            String s;
-            while (!"theJpgIsNowFinish".equals(s = dataInputStream.readUTF())) {
-                receive += s;
+                //接收服务端的响应
+                StringBuilder receive = new StringBuilder();
+                String s;
+                while (!"theJpgIsNowFinish".equals(s = dataInputStream.readUTF())) {
+                    receive.append(s);
+                }
+                this.fileString[this.block] = new StringBuffer();
+                this.fileString[this.block].append(receive);
+
+                System.out.println("第 " + this.block + " 块文件获取成功，来自 " + this.host.get("host"));
+                //关闭数据传输流
+                dataOutputStream.close();
+                dataInputStream.close();
+                latch.countDown();
+                break;
+
+            } catch (IOException e) {
+                System.out.println(this.host.get("host") + " 服务器连接异常，正在将请求交付其他服务器");
+                hostError = true;
+                Random random = new Random();
+                int index = random.nextInt(threads.size());
+                boolean unchanged = true;
+                do {
+
+                    if(!this.host.toString().equals(threads.get(index).getHost().toString())) {
+                        this.host = threads.get(index).getHost();
+                        unchanged = false;
+                    }
+                    index = random.nextInt(threads.size());
+                }while (!threads.get(index).isHostError() || unchanged);
+
+                System.out.println("第 " + this.block + " 块任务尝试交给 " + this.host.get("host"));
             }
-            //System.out.println("客户端接收到的数据：[ " + receive + " ]");
-            this.fileString[this.block] = new StringBuffer();
-            this.fileString[this.block].append(receive);
-            //OutputStreamWriter osw2=new OutputStreamWriter(new FileOutputStream("IMG_20211207_173215_1.jpg"),"ASCII");
-            /*File file = new File("IMG_20211207_173215_1.jpg");
-
-            FileUtils.touch(file);
-            FileUtils.writeStringToFile(file,receive,StandardCharsets.ISO_8859_1,false);*/
-            System.out.println("第 " + this.block + "块文件获取成功，来自 " + this.host.get("host"));
-            //关闭数据传输流
-            dataOutputStream.close();
-            dataInputStream.close();
-            latch.countDown();
-
-        } catch (IOException e) {
-            e.printStackTrace();
         }
     }
 
+    public JSONObject getHost() {
+        return host;
+    }
+
+    public boolean isHostError() {
+        return hostError;
+    }
 }
