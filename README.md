@@ -9,4 +9,4 @@
 ### @auther Ginger NCHU 192072
 
 ------------------
-### You can do it batter
+### You can do it better
