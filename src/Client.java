@@ -105,7 +105,7 @@ class DownloadThread extends Thread{
     private JSONObject host;
     private final int block;
     private final StringBuffer[] fileString;
-    final static int BLOCK_SIZE =  262144;
+    final static int BLOCK_SIZE = 262144;
     private final int fileSize;
     private final CountDownLatch latch;
     private final ArrayList<DownloadThread> threads;
